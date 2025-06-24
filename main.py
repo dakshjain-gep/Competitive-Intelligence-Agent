@@ -1,16 +1,23 @@
-from typing import Union
-import os
-from agents.analyzer_agent import analyzer_agent
-from agents.scraper_agent import scraper_agent
-from agents.swot_agent import swot_chain
 
-company="Amazon"
+# from agents.scraper_agent import scraper_agent
 
-scraped_text=scraper_agent.invoke(f"Scrape news about {company}")
+# company="Amazon"
 
-analyzed_output=analyzer_agent.invoke(scraped_text)
+# scraped_text=scraper_agent.invoke(f"Scrape news about {company}")
 
-swot_result=swot_chain.invoke(input=analyzed_output)
+from fastapi import FastAPI, Request
+from chain import start_llm_chain
+from pydantic import BaseModel
 
-print(swot_result)
+app = FastAPI()
+
+class MessageInput(BaseModel):
+    message: str
+
+@app.post("/chat")
+async def chat_endpoint(payload: MessageInput):
+    user_msg = payload.message
+    reply = start_llm_chain(user_msg)
+    return {"reply": reply}
+
 

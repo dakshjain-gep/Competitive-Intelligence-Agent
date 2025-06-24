@@ -21,41 +21,56 @@ def section_prompt_builder(section_title: str, instruction: str):
         """
             
     return RunnableLambda(_make_prompt) | llm
+
+def extract_company_llm(prompt: str) -> str:
+    return llm.invoke(f"""
+        Extract the company name from the following prompt.
+
+        Prompt: {prompt}
+
+        Only return the company name from the prompt, nothing else.
+        
+        Example -> Input: Generate a CI for Tesla 
+                Output: Tesla
+        """).content.strip()
     
 
-company = input("Enter the company name: ")
-url = "http://127.0.0.1:8000/prepare-prompt"
-payload = {
-    "company": company
-}
-response = requests.post(url, json=payload)
-
-if response.status_code == 200:
-    data = response.json()
+def start_llm_chain(prompt: str):
     
-    sections = {
-        "summary": section_prompt_builder("Summary", "Summarize recent developments, key events, and any notable trends."),
-        "sentiment": section_prompt_builder("Sentiment Analysis", "Conduct sentiment analysis based on tone and content."),
-        "risks": section_prompt_builder("Risks & Legal", "Identify strategic risks, legal issues, or unusual activity."),
-        "swot": section_prompt_builder("SWOT", "Generate a full SWOT analysis."),
-        "ci": section_prompt_builder("CI Insights", "Outline competitive intelligence insights that may affect the company."),
-        "forward_look": section_prompt_builder("Forward Looking", "Highlight forward-looking statements or executive activity.")
+    company = extract_company_llm(prompt)
+    print(company)
+
+    url = "http://127.0.0.1:8000/prepare-prompt"
+    payload = {
+        "company": company
     }
-    
-    # Run all in parallel
-    report_chain = RunnableMap(sections)
-    
-    results = report_chain.invoke(data)
-    
-    # Combine markdown
-    full_markdown = f"# CI Brief: {company}\n\n"
-    for key, value in results.items():
-        full_markdown += f"## {key.replace('_', ' ').title()}\n{value.content}\n\n"
+    response = requests.post(url, json=payload)
 
-    print(full_markdown)
-    
-else:
-    print("Error:", response.status_code, response.text)
-    print(response)
-    
+    if response.status_code == 200:
+        data = response.json()
+        
+        sections = {
+            "summary": section_prompt_builder("Summary", "Summarize recent developments, key events, and any notable trends."),
+            "sentiment": section_prompt_builder("Sentiment Analysis", "Conduct sentiment analysis based on tone and content."),
+            "risks": section_prompt_builder("Risks & Legal", "Identify strategic risks, legal issues, or unusual activity."),
+            "swot": section_prompt_builder("SWOT", "Generate a full SWOT analysis."),
+            "ci": section_prompt_builder("CI Insights", "Outline competitive intelligence insights that may affect the company."),
+            "forward_look": section_prompt_builder("Forward Looking", "Highlight forward-looking statements or executive activity.")
+        }
+        
+        # Run all in parallel
+        report_chain = RunnableMap(sections)
+        
+        results = report_chain.invoke(data)
+        
+        # Combine markdown
+        full_markdown = f"# CI Brief: {company}\n\n"
+        for key, value in results.items():
+            full_markdown += f"## {key.replace('_', ' ').title()}\n{value.content}\n\n"
+
+        return full_markdown
+        
+    else:
+        return f"Error: {response.status_code} {response.text}"
+        
 
