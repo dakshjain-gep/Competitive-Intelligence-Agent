@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+bs4
+langchain
+langchain-community
+python-dotenv
+selenium
+spacy
+langchain_openai
+pydantic
+requests
+lxml
+ 

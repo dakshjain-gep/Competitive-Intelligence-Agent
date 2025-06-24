@@ -1,6 +1,6 @@
 from langchain_openai import ChatOpenAI
 from tools import analyze_competitor_text
-from langchain.agents import initialize_agent,AgentType
+from langchain.agents import initialize_agent, AgentType
 from dotenv import load_dotenv
 import os
 
