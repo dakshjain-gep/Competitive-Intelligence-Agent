@@ -8,6 +8,7 @@
 from fastapi import FastAPI, Request
 from chain import start_llm_chain
 from pydantic import BaseModel
+import time
 
 app = FastAPI()
 
@@ -17,7 +18,11 @@ class MessageInput(BaseModel):
 @app.post("/chat")
 async def chat_endpoint(payload: MessageInput):
     user_msg = payload.message
+    start = time.time()
     reply = start_llm_chain(user_msg)
+    end = time.time()
+    print(f"Time taken: {int(end-start)}s")
     return {"reply": reply}
+
 
 

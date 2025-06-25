@@ -3,8 +3,9 @@ from controllers.filings_controller import fetch_sec_filings
 
 def generate_prompt(company: str) -> str:
     news_items = fetch_news(company)
+    
     filings_texts = fetch_sec_filings(company)
-
+    
     formatted_articles = "\n\n".join([
         f"Title: {article.title}\nSource: {article.source}\nPublished: {article.published} \nContent: {article.description + ' ' + article.content}"
         for article in news_items

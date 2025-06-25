@@ -7,6 +7,13 @@ def fetch_sec_filings(cik_or_name: str) -> List[FilingItem]:
     # CIK lookup via SEC API (if name is passed)
     if not cik_or_name.isdigit():
         cik = lookup_cik_from_name(cik_or_name)
+        if(cik == "Company not found in SEC database."):
+            return [
+                FilingText(
+                    text="Company name not found in SEC database",
+                    document_url="No documents were found"
+                )
+            ]
     else:
         cik = cik_or_name.zfill(10)
 
@@ -19,7 +26,7 @@ def fetch_sec_filings(cik_or_name: str) -> List[FilingItem]:
 
     data = res.json()
     recent = data.get("filings", {}).get("recent", {})
-    count = min(len(recent.get("form", [])), 5)
+    count = min(len(recent.get("form", [])), 2)
 
     filings = [
         FilingItem(
@@ -49,7 +56,7 @@ def lookup_cik_from_name(company: str) -> str:
         if company.lower() in entry["title"].lower():
             return str(entry["cik_str"]).zfill(10)
 
-    raise Exception(f"Company {company} not found in SEC database.")
+    return "Company not found in SEC database."
 
 
 # to scrape the data from the filing document
