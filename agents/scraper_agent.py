@@ -18,6 +18,9 @@ llm = ChatOpenAI(
 )
 
 
+
+
+
 scraper_agent=initialize_agent(tools=[scrape_competitor_news],llm=llm,
                                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,verbose=True,
                                handle_parsing_errors=True,
