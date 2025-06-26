@@ -2,7 +2,7 @@ from agents.scraper_agent import scraper_agent
 
 
 # app = FastAPI()
-company="Amazon"
+company="GEP"
 
 scraped_text=scraper_agent.invoke(f"Scrape news about {company}")
 
