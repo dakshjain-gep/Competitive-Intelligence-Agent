@@ -2,137 +2,91 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
 
-def scrape_news(query):
-    driver = webdriver.Chrome()
 
-    driver.get(f"https://www.google.com/search?q={query}+company+news&tbm=nws")
+def scroll_to_bottom(driver, pause_time=1.5, max_scrolls=10):
+    """Scrolls the page to the bottom to load dynamic content."""
+    last_height = driver.execute_script("return document.body.scrollHeight")
 
-    time.sleep(2)
+    for _ in range(max_scrolls):
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(pause_time)  # Wait for new content to load
 
-    elements = driver.find_elements(By.CSS_SELECTOR, 'div.BVG0Nb')
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
 
-    news = [ el.text for el in elements if el.text.strip() != "" ]
+
+def extract_urls(driver,urls,max_articles,query):
+    elements = driver.find_elements(By.XPATH, f'//div[contains(text(),"{query}")]')
+    for div in elements:
+        try:
+            parent_a = div.find_element(By.XPATH, './ancestor::a[1]')
+            url = parent_a.get_attribute("href")
+            if url and url not in urls:
+                urls.append(url)
+            if len(urls) >= max_articles:
+                break
+        except Exception as e:
+            print(f"Skipping a div due to error: {e}")
+            continue
+
+def scrape_news(query, max_articles=10):
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    driver = webdriver.Chrome(options=options)
+    driver.get(f"https://www.google.com/search?q={query}+company+and+its+competitors&tbm=nws")
+    time.sleep(5)
+
+    urls = []
+
+    extract_urls(driver,urls,max_articles,query)
+
+    try:
+        pages = driver.find_elements(By.XPATH, '//a[starts-with(@aria-label, "Page ") and number(substring-after(@aria-label, "Page ")) <= 3]')
+        page_links = [a.get_attribute('href') for a in pages if a.get_attribute('href')]
+    except Exception as e:
+        print(f"Error finding pagination: {e}")
+
+
+    for page_url in page_links:
+        try:
+            driver.get(page_url)
+            time.sleep(5)
+
+            extract_urls(driver,urls,max_articles,query)
+            if len(urls) >= max_articles:
+                break
+        except Exception as e:
+            print(f"Failed on page : {e}")
+
+
+    scraped_articles = []
+    for i, url in enumerate(urls):
+        try:
+            driver.get(url)
+            time.sleep(3)
+
+
+            scroll_to_bottom(driver)
+
+            paragraphs = driver.find_elements(By.TAG_NAME, "p")
+            paragraphs_text = " ".join([p.text for p in paragraphs if p.text.strip()])
+
+            if paragraphs_text:
+                scraped_articles.append(paragraphs_text[:4000])
+            else:
+                scraped_articles.append(f"[No text content found at] {url}")
+
+            print(f"Scraped article {i + 1} from {url}")
+
+        except Exception as e:
+            print(f"Failed to scrape article {i + 1} from {url}: {e}")
+            scraped_articles.append(f"[Failed to scrape] {url}")
 
     driver.quit()
-
-    return news
-
-
-# from selenium import webdriver
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.chrome.options import Options
-# import time
+    return scraped_articles
 
 
-# def init_driver(headless=True):
-#     chrome_options = Options()
-#     if headless:
-#         chrome_options.add_argument("--headless")
-#     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-#     chrome_options.add_argument("--no-sandbox")
-#     chrome_options.add_argument("--disable-dev-shm-usage")
-#     return webdriver.Chrome(options=chrome_options)
-
-
-# def scrape_google_news(query, max_results=5):
-#     driver = init_driver()
-#     driver.get(f"https://www.google.com/search?q={query}+company+news&tbm=nws")
-#     time.sleep(3)
-
-#     articles = []
-#     elements = driver.find_elements(By.CSS_SELECTOR, 'div.dbsr')
-
-#     for el in elements[:max_results]:
-#         try:
-#             title = el.find_element(By.TAG_NAME, 'div').text
-#             link = el.find_element(By.TAG_NAME, 'a').get_attribute('href')
-#             snippet = el.find_element(By.CLASS_NAME, 'Y3v8qd').text
-#             articles.append({'source': 'Google News', 'title': title, 'link': link, 'snippet': snippet})
-#         except:
-#             continue
-
-#     driver.quit()
-#     return articles
-
-
-# def scrape_yahoo_finance_news(query, max_results=5):
-#     driver = init_driver()
-#     driver.get(f"https://finance.yahoo.com/quote/{query}/news")
-#     time.sleep(3)
-
-#     articles = []
-#     elements = driver.find_elements(By.CSS_SELECTOR, 'li.js-stream-content')
-
-#     for el in elements[:max_results]:
-#         try:
-#             title = el.find_element(By.TAG_NAME, 'h3').text
-#             link = el.find_element(By.TAG_NAME, 'a').get_attribute('href')
-#             snippet = el.find_element(By.TAG_NAME, 'p').text
-#             articles.append({'source': 'Yahoo Finance', 'title': title, 'link': link, 'snippet': snippet})
-#         except:
-#             continue
-
-#     driver.quit()
-#     return articles
-
-
-# def scrape_reuters_news(query, max_results=5):
-#     driver = init_driver()
-#     driver.get(f"https://www.reuters.com/site-search/?query={query}")
-#     time.sleep(3)
-
-#     articles = []
-#     elements = driver.find_elements(By.CSS_SELECTOR, 'div.search-result-content')
-
-#     for el in elements[:max_results]:
-#         try:
-#             title = el.find_element(By.TAG_NAME, 'h3').text
-#             link = el.find_element(By.TAG_NAME, 'a').get_attribute('href')
-#             snippet = el.find_element(By.CLASS_NAME, 'search-result-excerpt').text
-#             if not link.startswith("https://"):
-#                 link = "https://www.reuters.com" + link
-#             articles.append({'source': 'Reuters', 'title': title, 'link': link, 'snippet': snippet})
-#         except:
-#             continue
-
-#     driver.quit()
-#     return articles
-
-
-# def scrape_businesswire(query, max_results=5):
-#     driver = init_driver()
-#     driver.get(f"https://www.businesswire.com/portal/site/home/search/?searchType=full&searchTerm={query}")
-#     time.sleep(3)
-
-#     articles = []
-#     elements = driver.find_elements(By.CSS_SELECTOR, 'div.search-result')[:max_results]
-
-#     for el in elements:
-#         try:
-#             title = el.find_element(By.CLASS_NAME, 'bwTitle').text
-#             link = el.find_element(By.TAG_NAME, 'a').get_attribute('href')
-#             snippet = el.find_element(By.CLASS_NAME, 'bwSummary').text
-#             articles.append({'source': 'BusinessWire', 'title': title, 'link': link, 'snippet': snippet})
-#         except:
-#             continue
-
-#     driver.quit()
-#     return articles
-
-
-# def scrape_all_sources(company, max_per_source=5):
-#     print(f"Scraping news for company: {company}")
-#     all_articles = []
-
-#     all_articles.extend(scrape_google_news(company, max_per_source))
-#     all_articles.extend(scrape_yahoo_finance_news(company, max_per_source))
-#     all_articles.extend(scrape_reuters_news(company, max_per_source))
-#     all_articles.extend(scrape_businesswire(company, max_per_source))
-
-#     return all_articles
-
-
-
-# company = "Tesla"
-# results = scrape_all_sources(company, max_per_source=3)
 
