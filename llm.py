@@ -17,9 +17,8 @@ load_dotenv()
 #     openai_api_base="https://api.together.xyz/v1"
 # )
 
-llm = ChatOpenAI(    
-                 model="mistralai/mixtral-8x7b-instruct",    
-                 openai_api_base="https://openrouter.ai/api/v1",    
-                 openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-                 temperature=0.7  
-                 )
+llm = ChatGroq(
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+        model_name="llama3-8b-8192",
+        temperature=0.7
+    )

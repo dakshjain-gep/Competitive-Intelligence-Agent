@@ -13,4 +13,5 @@ lxml
 langchain_groq
 streamlit
 yfinance
- 
+fpdf 
+matplotlib
