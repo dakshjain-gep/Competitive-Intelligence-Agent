@@ -1,7 +1,5 @@
 from langchain_core.tools import tool
 from scraper import scrape_news
-from processor import clean_text
-from analyzer import extract_entities
 
 @tool
 def scrape_competitor_news(query:str)->str:

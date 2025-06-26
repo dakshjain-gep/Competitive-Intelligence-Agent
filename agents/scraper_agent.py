@@ -13,12 +13,9 @@ llm = ChatOpenAI(
     model="mistralai/mixtral-8x7b-instruct",
     openai_api_base="https://openrouter.ai/api/v1",
     openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-    temperature=0.3,
+    temperature=0.7,
     max_tokens=3000,
 )
-
-
-
 
 
 scraper_agent=initialize_agent(tools=[scrape_competitor_news],llm=llm,
