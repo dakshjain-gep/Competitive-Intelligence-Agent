@@ -1,11 +1,28 @@
-from agents.scraper_agent import scraper_agent
 
+# from agents.scraper_agent import scraper_agent
 
-# app = FastAPI()
-company="GEP"
+# company="Amazon"
 
-scraped_text=scraper_agent.invoke(f"Scrape news about {company}")
+# scraped_text=scraper_agent.invoke(f"Scrape news about {company}")
 
-print(scraped_text["output"])
+from fastapi import FastAPI, Request
+from chain import start_llm_chain
+from pydantic import BaseModel
+import time
+
+app = FastAPI()
+
+class MessageInput(BaseModel):
+    message: str
+
+@app.post("/chat")
+async def chat_endpoint(payload: MessageInput):
+    user_msg = payload.message
+    start = time.time()
+    reply = start_llm_chain(user_msg)
+    end = time.time()
+    print(f"Time taken: {int(end-start)}s")
+    return {"reply": reply}
+
 
 
