@@ -15,7 +15,7 @@ class Tickers(BaseModel):
 
 def ticker_extraction_prompt(data: dict):
     return f"""
-        You are a financial data assistant.
+        You are a JSON generator.
 
         Given the following company name, news articles, and SEC filings:
 
@@ -28,21 +28,14 @@ def ticker_extraction_prompt(data: dict):
         --- SEC Filings ---
         {data['filings']}
 
-        Your only task:
-
-        Return a JSON object with the following keys:
-
-        - "companyticker": string
-        - "competitortickers": list of strings (up to 5 relevant competitors)
-
-        ❌ Do not add any explanation or extra text.
-
-        ✅ Only output raw valid JSON like this:
+        Respond ONLY with valid JSON matching this schema:
 
         {{
-        "companyticker": "TSLA",
-        "competitortickers": ["BYDDF", "VWAGY", "RIVN", "NIO", "LI"]
+        "companyticker": "string",
+        "competitortickers": ["string", "string", ...]
         }}
+
+        No explanations. No preamble. No markdown. No extra text. Only pure JSON.
         """
 
 def section_prompt_builder(section_title: str, instruction: str):

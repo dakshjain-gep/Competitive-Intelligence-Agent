@@ -13,7 +13,7 @@ def fetch_news(company: str) -> list[NewsItem]:
         "q": company,
         "lang": "en",
         "token": GNEWS_API_KEY,
-        "max": 5
+        "max": 10
     }
 
     response = requests.get(url, params=params)
