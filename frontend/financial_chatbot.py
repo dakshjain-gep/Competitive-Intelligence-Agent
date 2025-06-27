@@ -90,23 +90,34 @@ def format_financial_data_for_chatbot(company1_data, company2_data=None):
 # =============================================================================
 def create_llm():
     """Initialize the LangChain LLM"""
-    return ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",  # Or "gemini-1.5-flash", "gemini-1.5-pro", etc.
-    google_api_key=os.getenv("GOOGLE_API_KEY2"),
-    temperature=0.7
-)
+    return ChatGroq(
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+        model_name="llama3-8b-8192",
+        temperature=0.7
+    )
+#     ChatGoogleGenerativeAI(
+#     model="gemini-2.0-flash",  # Or "gemini-1.5-flash", "gemini-1.5-pro", etc.
+#     google_api_key=os.getenv("GOOGLE_API_KEY2"),
+#     temperature=0.5
+# )
 
 def create_system_prompt(financial_data):
     """Create the system prompt for the financial assistant"""
-    return f"""You are a highly intelligent Financial Analysis Assistant for TechCorp India.
+    return f"""You are a highly intelligent Business Analysis Assistant.
 
-Your job is to analyze the provided financial data and respond to user questions with both text explanations and graph data when appropriate.
+Your job is to analyze the provided CI report and financial data and respond to user questions with both text explanations and graph data when appropriate.
 
 IMPORTANT: You must respond in a specific JSON format that allows for both text and graph responses.
 
-Financial Data Available:
-{financial_data}
+Data Available:
+{financial_data.get('ci')}
+{financial_data.get('financials')}
 
+so it will have to mapping that is "ci" which have the markdown content of the CI report and "financials" which have the financial data of the company.
+throrgly check and read both and then respond to the user question.
+
+
+ So you have the above adata and you have to respond to the user question in the following JSON format:
 RESPONSE FORMAT RULES:
 1. Always respond with valid JSON in this exact structure:
 ```json
