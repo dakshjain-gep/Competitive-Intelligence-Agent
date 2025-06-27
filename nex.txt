@@ -1,0 +1,228 @@
+import streamlit as st
+import requests
+from updates import (
+    CompetitorAnalyzer,
+    display_company_info,
+    compare_multiple_tickers,
+    display_comparison_results
+)
+from financial_chatbot import render_financial_chatbot
+
+# Page configuration
+st.set_page_config(page_title="🧠 CI + Financial Analyzer", layout="wide")
+analyzer = CompetitorAnalyzer()
+
+# Title
+st.title("🧠 Competitive Intelligence Brief + Financial Analyzer")
+
+# ---- Initialize Session State ----
+defaults = {
+    "data_fetched": False,
+    "company_financial_data": None,
+    "company_ticker": None,
+    "competitor_tickers": [],
+    "company_name": None,
+    "ci_markdown": None,
+    "comparison_results": None,
+    "comparison_done": False
+}
+for key, value in defaults.items():
+    st.session_state.setdefault(key, value)
+
+st.session_state.setdefault("show_chatbot", False)
+
+# ---- User Input ----
+company_name = st.text_input("Enter Company Name", placeholder="e.g. Tesla")
+
+if st.button("🚀 Generate CI + Financial Report"):
+    if not company_name.strip():
+        st.warning("⚠️ Please enter a valid company name.")
+    else:
+        with st.spinner("⏳ Generating Report..."):
+            st.session_state.company_name = company_name
+            fallback_data = {
+                "ticker": "TSLA",
+                "competitors": ["AAPL", "GOOGL", "AMZN"],
+                "markdown": f"# Competitive Intelligence Brief for {company_name}\n\n*API unavailable - using demo content*"
+            }
+
+            # ---- Fetch CI Data ----
+            try:
+                response = requests.post(
+                    "http://127.0.0.1:8001/chat",
+                    json={"message": company_name},
+                    timeout=30
+                )
+                response.raise_for_status()
+                ci_data = response.json().get("reply", {})
+
+                if not ci_data or not isinstance(ci_data, dict):
+                    raise ValueError("Invalid CI data received.")
+
+                st.session_state.ci_markdown = ci_data.get("markdown", fallback_data["markdown"])
+                st.session_state.company_ticker = ci_data.get("companyticker", fallback_data["ticker"])
+                st.session_state.competitor_tickers = ci_data.get("competitortickers", fallback_data["competitors"])
+
+            except Exception as e:
+                st.error(f"❌ CI API Error: {str(e)}")
+                st.session_state.ci_markdown = fallback_data["markdown"]
+                st.session_state.company_ticker = fallback_data["ticker"]
+                st.session_state.competitor_tickers = fallback_data["competitors"]
+
+            # ---- Fetch Financial Summary ----
+            try:
+                summary = analyzer.get_summary(st.session_state.company_ticker)
+                if not summary:
+                    raise ValueError(f"No data found for {st.session_state.company_ticker}")
+
+                st.session_state.company_financial_data = summary
+                st.session_state.data_fetched = True
+                st.success("✅ Financial data fetched successfully!")
+
+                # ---- Prepare for Comparison (Don't auto-run) ----
+                try:
+                    # Just prepare the tickers list, don't run comparison automatically
+                    all_tickers = [st.session_state.company_ticker] + st.session_state.competitor_tickers
+                    st.info(f"📋 Ready to compare with: {', '.join(st.session_state.competitor_tickers)}")
+                    
+                    # Initialize comparison state as not done
+                    st.session_state.comparison_done = False
+                    st.session_state.comparison_results = None
+                        
+                except Exception as e:
+                    st.error(f"❌ Error preparing comparison: {str(e)}")
+                    st.session_state.comparison_results = None
+                    st.session_state.comparison_done = False
+
+            except Exception as e:
+                st.error(f"⚠️ Financial data error: {str(e)}")
+                st.session_state.data_fetched = False
+
+# ---- AI Assistant Toggle (Moved to top for better accessibility) ----
+if st.session_state.data_fetched and st.session_state.company_financial_data:
+    st.markdown("---")
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🤖 AI Assistant", key="ai_toggle", help="Toggle AI chatbot"):
+            st.session_state.show_chatbot = not st.session_state.show_chatbot
+    
+    # Show chatbot status
+    if st.session_state.show_chatbot:
+        st.info("🤖 AI Assistant is active - scroll down to interact!")
+
+# ---- Display Tabs ----
+if st.session_state.data_fetched and st.session_state.company_financial_data:
+    tabs = st.tabs(["📄 CI Report", "📊 Financial Analysis", "🏆 Competitor Comparison"])
+
+    # -- Tab 1: CI Report --
+    with tabs[0]:
+        st.subheader("📄 Competitive Intelligence Brief")
+        st.info(f"CI Report for {st.session_state.company_name}")
+        st.markdown(st.session_state.ci_markdown, unsafe_allow_html=True)
+
+    # -- Tab 2: Financial Analysis --
+    with tabs[1]:
+        st.subheader("💼 Financial Snapshot")
+        display_company_info(st.session_state.company_financial_data)
+
+        st.subheader("📈 Price Chart & Technical Analysis")
+        try:
+            analyzer.plot_chart(
+                st.session_state.company_financial_data["history"],
+                st.session_state.company_ticker
+            )
+        except Exception as e:
+            st.error(f"Chart rendering error: {str(e)}")
+
+    # -- Tab 3: Competitor Comparison --
+    with tabs[2]:
+        st.subheader("🏆 Competitive Landscape Analysis")
+        
+        if st.session_state.competitor_tickers:
+            all_tickers = [st.session_state.company_ticker] + st.session_state.competitor_tickers
+            st.info(f"📊 Ready to compare {st.session_state.company_name} ({st.session_state.company_ticker}) with competitors")
+            st.markdown(f"**Companies to analyze:** {', '.join(all_tickers)}")
+            
+            # Always show the run comparison button
+            if st.button("🚀 Run Comparison Analysis", key="run_comparison", help="Click to fetch and compare competitor data"):
+                with st.spinner("🔄 Fetching and analyzing competitor data..."):
+                    try:
+                        # Run the comparison function
+                        comparison_results = compare_multiple_tickers(st.session_state, all_tickers)
+                        
+                        # Update session state
+                        st.session_state.comparison_results = comparison_results
+                        st.session_state.comparison_done = True
+                        
+                        st.success("✅ Competitor comparison completed successfully!")
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Comparison failed: {str(e)}")
+                        st.session_state.comparison_results = None
+                        st.session_state.comparison_done = False
+            
+            # Show current status
+            if st.session_state.comparison_done:
+                if st.session_state.comparison_results:
+                    st.success("📊 Comparison data loaded! Results are displayed above.")
+                else:
+                    st.warning("⚠️ Comparison completed but no results available")
+                    
+                # Option to refresh comparison
+                if st.button("🔄 Refresh Comparison", key="refresh_comparison"):
+                    st.session_state.comparison_done = False
+                    st.session_state.comparison_results = None
+                    st.rerun()
+            else:
+                st.info("👆 Click 'Run Comparison Analysis' to fetch competitor data and generate comparison charts")
+                
+        else:
+            st.warning("⚠️ No competitor tickers available for comparison.")
+
+# ---- Reset Option ----
+if st.session_state.data_fetched:
+    st.markdown("---")
+    if st.button("🔄 Clear Data & Start Over", key="clear_data"):
+        for key in defaults:
+            st.session_state.pop(key, None)
+        st.session_state.show_chatbot = False  # Reset chatbot state
+        st.rerun()
+
+# ---- Render Chatbot (Comparison data is optional) ----
+if st.session_state.get("show_chatbot") and st.session_state.data_fetched:
+    st.markdown("---")
+    st.subheader("🤖 AI Financial Assistant")
+    
+    # Prepare data for chatbot - comparison data is optional
+    ci_data = {
+        "ci": st.session_state.get("ci_markdown"),
+        "financials": st.session_state.get("company_financial_data"),
+        "comparison": st.session_state.get("comparison_results") if st.session_state.get("comparison_done") else None
+    }
+    
+    # Check if basic required data is available (CI + Financial)
+    if ci_data["ci"] and ci_data["financials"]:
+        st.success("🤖 AI Assistant is ready!")
+        
+        # Show data status
+        with st.expander("📊 Available Data", expanded=False):
+            st.write("**Data Status:**")
+            st.write(f"- CI Report: {'✅ Available' if ci_data['ci'] else '❌ Missing'}")
+            st.write(f"- Financial Data: {'✅ Available' if ci_data['financials'] else '❌ Missing'}")
+            if st.session_state.get("comparison_done"):
+                st.write(f"- Comparison Results: {'✅ Available' if ci_data['comparison'] else '⚠️ No results'}")
+            else:
+                st.write("- Comparison Results: ⏳ Not run yet (Go to Competitor Comparison tab to run)")
+        
+        # Render the chatbot
+        render_financial_chatbot(ci_data)
+        
+    else:
+        st.warning("⚠️ Basic data is still loading. Please wait for CI and financial reports to complete.")
+        
+        # Show what's missing
+        st.write("**Required Data Status:**")
+        st.write(f"- CI Report: {'✅' if ci_data['ci'] else '❌ Missing'}")
+        st.write(f"- Financial Data: {'✅' if ci_data['financials'] else '❌ Missing'}")
+        st.write(f"- Comparison Results: {'✅' if ci_data['comparison'] else '⏳ Optional - run in Competitor tab'}")

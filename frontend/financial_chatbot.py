@@ -6,6 +6,8 @@ import plotly.express as px
 import re
 import os
 from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 
 load_dotenv()
 # LangChain imports
@@ -88,11 +90,11 @@ def format_financial_data_for_chatbot(company1_data, company2_data=None):
 # =============================================================================
 def create_llm():
     """Initialize the LangChain LLM"""
-    return ChatGroq(
-        groq_api_key=GROQ_API_KEY,
-        model_name="llama3-8b-8192",
-        temperature=0.7
-    )
+    return ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",  # Or "gemini-1.5-flash", "gemini-1.5-pro", etc.
+    google_api_key=os.getenv("GOOGLE_API_KEY2"),
+    temperature=0.7
+)
 
 def create_system_prompt(financial_data):
     """Create the system prompt for the financial assistant"""

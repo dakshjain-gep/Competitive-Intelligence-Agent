@@ -7,6 +7,7 @@ import plotly.graph_objs as go
 import plotly.express as px
 from financial_chatbot import render_financial_chatbot
 
+
 # Enhanced page configuration
 st.set_page_config(
     page_title="📊 Competitor Stock Analyzer",
@@ -155,6 +156,164 @@ class CompetitorAnalyzer:
         )
 
         st.plotly_chart(fig, use_container_width=True)
+def compare_multiple_tickers(self, tickers_list):
+        """
+        Fetches data for multiple company tickers and returns the data without displaying.
+        
+        Args:
+            tickers_list: List of ticker symbols (strings) to compare
+            
+        Returns:
+            dict: {
+                'companies_data': List of company data dictionaries,
+                'failed_tickers': List of tickers that failed to fetch,
+                'success_count': Number of successfully fetched companies,
+                'total_count': Total number of tickers requested
+            }
+            
+        Example:
+            result = analyzer.compare_multiple_tickers(['AAPL', 'GOOGL', 'MSFT', 'TSLA'])
+            if result['companies_data']:
+                # Process the data
+                display_multi_comparison(result['companies_data'])
+        """
+        # Validation
+        if not tickers_list or len(tickers_list) < 2:
+            return {
+                'companies_data': [],
+                'failed_tickers': tickers_list if tickers_list else [],
+                'success_count': 0,
+                'total_count': len(tickers_list) if tickers_list else 0,
+                'error': "Please provide at least 2 ticker symbols for comparison."
+            }
+        
+        companies_data = []
+        failed_tickers = []
+        
+        # Fetch data for each ticker
+        for ticker in tickers_list:
+            try:
+                # Use the existing get_summary method
+                company_data = self.get_summary(ticker)
+                
+                if company_data:
+                    companies_data.append(company_data)
+                else:
+                    failed_tickers.append(ticker)
+                    
+            except Exception as e:
+                failed_tickers.append(ticker)
+        
+        # Return structured data
+        return {
+            'companies_data': companies_data,
+            'failed_tickers': failed_tickers,
+            'success_count': len(companies_data),
+            'total_count': len(tickers_list),
+            'error': None
+        }
+
+
+def format_num(value):
+    try:
+        return f"${float(value):,.2f}"
+    except:
+        return "N/A"
+
+def pct(value):
+    try:
+        return f"{float(value) * 100:.2f}%"
+    except:
+        return "N/A"
+
+def display_comparison_results(comparison_result, show_download=True):
+    """
+    Display the results from compare_multiple_tickers with UI elements.
+    """
+    if not comparison_result or not isinstance(comparison_result, dict):
+        return
+
+    result = comparison_result
+
+    # Handle errors
+    if result.get('error'):
+        st.warning(f"⚠️ {result['error']}")
+        return
+
+    if result.get('failed_tickers'):
+        st.warning(f"⚠️ Could not fetch data for: {', '.join(result['failed_tickers'])}")
+
+    if result.get('companies_data'):
+        st.success(f"✅ Successfully fetched data for {result['success_count']} out of {result['total_count']} companies!")
+
+        # Display comparison (assumes display_multi_comparison is defined)
+        from updates import display_multi_comparison
+        display_multi_comparison(result['companies_data'])
+
+        if show_download:
+            try:
+                all_data = []
+                expected_keys = [
+                    'company_name', 'ticker', 'sector', 'industry',
+                    'current_price', 'market_cap', 'pe_ratio', 'forward_pe', 'pb_ratio',
+                    'totalRevenue', 'netIncomeToCommon', 'profitMargins', 'operatingMargins',
+                    'revenueGrowth', 'earningsGrowth', 'returnOnEquity', 'returnOnAssets',
+                    'beta', 'recommendationKey', 'targetMeanPrice', 'marketCap'
+                ]
+
+                for company in result['companies_data']:
+                    if not isinstance(company, dict):
+                        st.warning("⚠️ Skipped invalid company entry.")
+                        continue
+
+                    for key in expected_keys:
+                        if key not in company:
+                            company[key] = 'N/A'
+
+                    row = {
+                        'Company Name': company['company_name'],
+                        'Ticker': company['ticker'],
+                        'Sector': company['sector'],
+                        'Industry': company['industry'],
+                        'Current Price': company['current_price'],
+                        'Market Cap': format_num(company.get("marketCap")),
+                        'P/E Ratio': company['pe_ratio'],
+                        'Forward P/E': company['forward_pe'],
+                        'P/B Ratio': company['pb_ratio'],
+                        'Revenue': company['totalRevenue'],
+                        'Net Income': company['netIncomeToCommon'],
+                        'Profit Margin': pct(company.get("profitMargins")),
+                        'Operating Margin': pct(company.get("operatingMargins")),
+                        'Revenue Growth': pct(company.get("revenueGrowth")),
+                        'Earnings Growth': pct(company.get("earningsGrowth")),
+                        'ROE': pct(company.get("returnOnEquity")),
+                        'ROA': pct(company.get("returnOnAssets")),
+                        'Beta': company['beta'],
+                        'Analyst Rating': company['recommendationKey'],
+                        'Target Price': company['targetMeanPrice'],
+                    }
+
+                    all_data.append(row)
+
+                df_download = pd.DataFrame(all_data)
+                csv = df_download.to_csv(index=False)
+
+                tickers_str = '_'.join([company.get('ticker', 'UNK') for company in result['companies_data'] if isinstance(company, dict)])
+                st.download_button(
+                    label="📥 Download Comparison Data as CSV",
+                    data=csv,
+                    file_name=f"multi_company_comparison_{tickers_str}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key=f"download_{hash(tickers_str)}"
+                )
+
+            except Exception as e:
+                st.error(f"❌ Error creating download file: {str(e)}")
+
+    else:
+        st.error("❌ No valid company data received. Check tickers or try again.")
+
+
 
 def get_sentiment_icon(value: str) -> str:
     """Returns an emoji icon based on a string value's inferred sentiment."""
@@ -174,6 +333,136 @@ def get_sentiment_icon(value: str) -> str:
     except ValueError:
         pass # Not a number, or not a percentage
     return "" # Default neutral
+def display_multi_comparison(companies_list):
+    """
+    Displays a beautiful multi-company comparison similar to the 2-company version.
+    
+    Args:
+        companies_list: List of company dictionaries (each containing financial data)
+    """
+    if not companies_list or len(companies_list) < 2:
+        st.warning("⚠️ Please provide at least 2 companies for comparison.")
+        return
+    
+    # Beautiful header with company count
+    num_companies = len(companies_list)
+    st.subheader(f"🏆 Multi-Company Comparison ({num_companies} Companies)")
+    st.info(f"📊 Comparing key metrics across {num_companies} selected companies.")
+    
+    # Create tabs for different comparison views
+    tab1, tab2, tab3 = st.tabs(["📊 Overview", "💰 Financial Metrics", "📈 Technical Analysis"])
+
+    with tab1:
+        st.markdown("### 🎯 Company Overview & Valuation")
+        
+        metrics = [
+            ("Company Name", "company_name"),
+            ("Ticker", "ticker"),
+            ("Sector", "sector"),
+            ("Industry", "industry"),
+            ("Current Price", "current_price"),
+            ("Market Cap", "market_cap"),
+            ("P/E Ratio", "pe_ratio"),
+            ("Forward P/E", "forward_pe"),
+            ("Target Price", "target_price"),
+        ]
+
+        comparison_data = []
+        for label, key in metrics:
+            row = [label]  # Start with metric name
+            
+            # Get value for each company
+            for company in companies_list:
+                value = company.get(key, "N/A")
+                # Format current price with $ symbol
+                if key == "current_price" and value != "N/A":
+                    value = f"${value}"
+                elif key == "target_price" and value != "N/A" and value != 0:
+                    value = f"${value}"
+                row.append(value)
+            
+            comparison_data.append(row)
+
+        # Create column names: Metric + Company names
+        columns = ["Metric"] + [f"{comp['company_name']}" for comp in companies_list]
+        df_overview = pd.DataFrame(comparison_data, columns=columns)
+        
+        # Beautiful dataframe display with styling
+        st.dataframe(
+            df_overview, 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Metric": st.column_config.TextColumn("📋 Metric", width="medium"),
+            }
+        )
+
+    with tab2:
+        st.markdown("### 💹 Financial Performance & Profitability")
+        
+        metrics = [
+            ("Revenue", "revenue"),
+            ("Net Income", "net_income"),
+            ("Profit Margin", "profit_margin"),
+            ("Operating Margin", "operating_margin"),
+            ("Revenue Growth", "revenue_growth"),
+            ("Earnings Growth", "earnings_growth"),
+            ("Return on Equity", "return_on_equity"),
+            ("Return on Assets", "return_on_assets"),
+            ("P/B Ratio", "pb_ratio"),
+        ]
+
+        comparison_data = []
+        for label, key in metrics:
+            row = [label]
+            for company in companies_list:
+                value = company.get(key, "N/A")
+                row.append(value)
+            comparison_data.append(row)
+
+        columns = ["Metric"] + [f"{comp['company_name']}" for comp in companies_list]
+        df_financial = pd.DataFrame(comparison_data, columns=columns)
+        
+        st.dataframe(
+            df_financial, 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Metric": st.column_config.TextColumn("💰 Financial Metric", width="medium"),
+            }
+        )
+
+    with tab3:
+        st.markdown("### 📈 Technical Analysis & Market Sentiment")
+        
+        metrics = [
+            ("Beta", "beta"),
+            ("RSI (14-day)", "rsi"),
+            ("MACD", "macd"),
+            ("Analyst Rating", "analyst_rating"),
+        ]
+
+        comparison_data = []
+        for label, key in metrics:
+            row = [label]
+            for company in companies_list:
+                value = company.get(key, "N/A")
+                row.append(value)
+            comparison_data.append(row)
+
+        columns = ["Metric"] + [f"{comp['company_name']}" for comp in companies_list]
+        df_technical = pd.DataFrame(comparison_data, columns=columns)
+        
+        st.dataframe(
+            df_technical, 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Metric": st.column_config.TextColumn("📊 Technical Metric", width="medium"),
+            }
+        )
+    
+    
 
 def display_company_info(company: Dict):
     """Displays detailed information for a single company."""
@@ -238,6 +527,113 @@ def display_company_info(company: Dict):
                 st.markdown(f"**Analyst Rating:** 👎 {company['analyst_rating']}")
             else:
                 st.markdown(f"**Analyst Rating:** neutral {company['analyst_rating']}")
+import pandas as pd
+from datetime import datetime
+import streamlit as st
+
+def compare_multiple_tickers(self, tickers_list):
+    """
+    Fetches data for multiple company tickers and displays a comprehensive comparison.
+    
+    Args:
+        tickers_list: List of ticker symbols (strings) to compare
+        
+    Example:
+        compare_multiple_tickers(['AAPL', 'GOOGL', 'MSFT', 'TSLA'])
+    """
+    if not tickers_list or len(tickers_list) < 2:
+        st.warning("⚠️ Please provide at least 2 ticker symbols for comparison.")
+        return
+    
+    st.info(f"🔄 Fetching data for {len(tickers_list)} companies: {', '.join(tickers_list)}")
+    analyzer = CompetitorAnalyzer()
+    
+    # Progress bar for better UX
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    companies_data = []
+    failed_tickers = []
+    
+    # Fetch data for each ticker
+    for i, ticker in enumerate(tickers_list):
+        try:
+            status_text.text(f"Fetching data for {ticker}... ({i+1}/{len(tickers_list)})")
+            progress_bar.progress((i + 1) / len(tickers_list))
+            
+            # Use the existing get_summary method
+            company_data = analyzer.get_summary(ticker)
+            
+            if company_data:
+                companies_data.append(company_data)
+            else:
+                failed_tickers.append(ticker)
+                
+        except Exception as e:
+            st.error(f"❌ Failed to fetch data for {ticker}: {str(e)}")
+            failed_tickers.append(ticker)
+    
+    # Clear progress indicators
+    progress_bar.empty()
+    status_text.empty()
+    
+    # Display results
+    if companies_data:
+        if failed_tickers:
+            st.warning(f"⚠️ Could not fetch data for the following tickers: {', '.join(failed_tickers)}")
+        
+        st.success(f"✅ Successfully fetched data for {len(companies_data)} companies!")
+        
+        # Display the comparison using the existing function
+        display_multi_comparison(companies_data)
+        
+        # Create download data
+        try:
+            # Create a comprehensive DataFrame for download
+            all_data = []
+            for company in companies_data:
+                company_row = {
+                    'Company Name': company.get('company_name', 'N/A'),
+                    'Ticker': company.get('ticker', 'N/A'),
+                    'Sector': company.get('sector', 'N/A'),
+                    'Industry': company.get('industry', 'N/A'),
+                    'Current Price': company.get('current_price', 'N/A'),
+                    'Market Cap': company.get('market_cap', 'N/A'),
+                    'P/E Ratio': company.get('pe_ratio', 'N/A'),
+                    'Forward P/E': company.get('forward_pe', 'N/A'),
+                    'P/B Ratio': company.get('pb_ratio', 'N/A'),
+                    'Revenue': company.get('revenue', 'N/A'),
+                    'Net Income': company.get('net_income', 'N/A'),
+                    'Profit Margin': company.get('profit_margin', 'N/A'),
+                    'Operating Margin': company.get('operating_margin', 'N/A'),
+                    'Revenue Growth': company.get('revenue_growth', 'N/A'),
+                    'Earnings Growth': company.get('earnings_growth', 'N/A'),
+                    'ROE': company.get('return_on_equity', 'N/A'),
+                    'ROA': company.get('return_on_assets', 'N/A'),
+                    'Beta': company.get('beta', 'N/A'),
+                    'Analyst Rating': company.get('analyst_rating', 'N/A'),
+                    'Target Price': company.get('target_price', 'N/A'),
+                }
+                all_data.append(company_row)
+            
+            df_download = pd.DataFrame(all_data)
+            csv = df_download.to_csv(index=False)
+            
+            # Fixed: Download button outside of conditional logic
+            st.download_button(
+                label="📥 Download Comparison Data as CSV",
+                data=csv,
+                file_name=f"multi_company_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                key=f"download_{hash(str(tickers_list))}"  # Unique key to avoid conflicts
+            )
+            
+        except Exception as e:
+            st.error(f"❌ Error creating download file: {str(e)}")
+    
+    else:
+        st.error("❌ Could not fetch data for any of the provided tickers. Please check the ticker symbols and try again.")
+
 
 def display_comparison(company1: Dict, company2: Dict):
     """Displays a side-by-side comparison of two companies."""
